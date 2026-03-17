@@ -14,35 +14,35 @@ with st.sidebar:
     if api_key:
         genai.configure(api_key=api_key)
 
-# 3. 分析実行関数（モデル指定を最も標準的なものに変更）
+# 3. 分析実行関数（モデルを順番に試す「バックアップ機能」付き）
 def analyze_with_ai(text):
-    # 'gemini-1.5-flash' が見つからない場合、'gemini-pro' を試す設定にします
-    try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
-        prompt = f"""
-        あなたは川内青年会議所（JC）の「監事」です。36歳の不動産業経営者という背景を持ち、
-        論理の整合性を最も重視します。以下の事業計画書を審査してください。
-        
-        【審査のポイント】
-        1. 背景：課題が具体的か。
-        2. 目的：背景を解決するゴールか。
-        3. 内容：手法が妥当か。
-        4. 検証：成果を数値で証明できるか。
+    # 試すモデルのリスト（最新から順に）
+    models_to_try = [
+        'gemini-1.5-flash-latest', 
+        'gemini-1.5-pro-latest', 
+        'gemini-pro'
+    ]
+    
+    prompt = f"""
+    あなたは川内青年会議所（JC）の「監事」です。36歳の不動産業経営者という背景を持ち、
+    論理の整合性を最も重視します。以下の事業計画書を審査してください。
+    
+    【審査ポイント】背景・目的・内容・検証の「一本筋」が通っているか。
+    【計画書テキスト】
+    {text}
+    """
 
-        【計画書】
-        {text}
-        """
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        # もしflashモデルが使えない場合、古い標準モデルで再試行します
+    last_error = ""
+    for model_name in models_to_try:
         try:
-            model_alt = genai.GenerativeModel('gemini-pro')
-            response = model_alt.generate_content(prompt)
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
             return response.text
-        except:
-            return f"エラー詳細: {str(e)}\n\n※Google AI Studioで'Gemini 1.5 Flash'の利用が許可されているか確認してください。"
+        except Exception as e:
+            last_error = str(e)
+            continue # 次のモデルを試す
+            
+    return f"全モデルでエラーが発生しました。APIキーの権限不足の可能性があります。\n詳細: {last_error}"
 
 # 4. Word読み込み
 def get_text_from_docx(file):
@@ -59,7 +59,7 @@ if uploaded_file:
         try:
             text_content = get_text_from_docx(uploaded_file)
             if st.button("監事審査を開始する"):
-                with st.spinner("AI監事が精査中..."):
+                with st.spinner("AI監事が精査中...（モデルを順次テストしています）"):
                     result = analyze_with_ai(text_content)
                     st.markdown("---")
                     st.header("📢 監事審査結果")
