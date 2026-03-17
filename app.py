@@ -6,7 +6,6 @@ import os
 # 1. ページ設定
 st.set_page_config(page_title="川内JC 監事審査AI", page_icon="⚖️", layout="wide")
 st.title("⚖️ 2026年度 川内JC 監事専用・事業計画分析システム")
-st.write("AIが計画書を読み込み、論理の整合性と改善案を提示します。")
 
 # 2. APIキーの設定
 with st.sidebar:
@@ -15,38 +14,35 @@ with st.sidebar:
     if api_key:
         genai.configure(api_key=api_key)
 
-# 3. 分析実行関数（エラーが出た箇所の修正）
+# 3. 分析実行関数（モデル指定を最も標準的なものに変更）
 def analyze_with_ai(text):
-    # モデル名を最新の指定方法に変更
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
-    
-    prompt = f"""
-    あなたは川内青年会議所（JC）の「監事」です。36歳の不動産業経営者という背景を持ち、
-    実務に厳しく、論理の整合性を最も重視します。
-    以下の事業計画書のテキストを読み、監事講評を作成してください。
-
-    【審査のポイント】
-    1. 事業背景：薩摩川内市の課題が具体的か。データに基づいているか。
-    2. 事業目的：背景を解決する「一本筋」が通ったゴールか。
-    3. 事業内容：目的達成に最短の手法か。
-    4. 検証方法：会費を使う価値を数値で証明できるか。
-
-    【出力形式】
-    ・各項目ごとの「現状分析」と「具体的アドバイス」
-    ・全体の判定（合格 ／ 要再考）
-    ・監事としての愛のある総評
-
-    【計画書テキスト】
-    {text}
-    """
-    
+    # 'gemini-1.5-flash' が見つからない場合、'gemini-pro' を試す設定にします
     try:
-        # 返答の生成
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        prompt = f"""
+        あなたは川内青年会議所（JC）の「監事」です。36歳の不動産業経営者という背景を持ち、
+        論理の整合性を最も重視します。以下の事業計画書を審査してください。
+        
+        【審査のポイント】
+        1. 背景：課題が具体的か。
+        2. 目的：背景を解決するゴールか。
+        3. 内容：手法が妥当か。
+        4. 検証：成果を数値で証明できるか。
+
+        【計画書】
+        {text}
+        """
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        # 具体的なエラーを画面に出す
-        return f"AI分析中にエラーが発生しました。: {str(e)}"
+        # もしflashモデルが使えない場合、古い標準モデルで再試行します
+        try:
+            model_alt = genai.GenerativeModel('gemini-pro')
+            response = model_alt.generate_content(prompt)
+            return response.text
+        except:
+            return f"エラー詳細: {str(e)}\n\n※Google AI Studioで'Gemini 1.5 Flash'の利用が許可されているか確認してください。"
 
 # 4. Word読み込み
 def get_text_from_docx(file):
@@ -63,10 +59,10 @@ if uploaded_file:
         try:
             text_content = get_text_from_docx(uploaded_file)
             if st.button("監事審査を開始する"):
-                with st.spinner("監事が内容を精査中..."):
+                with st.spinner("AI監事が精査中..."):
                     result = analyze_with_ai(text_content)
                     st.markdown("---")
-                    st.header("📢 監事審査結果（AI講評）")
+                    st.header("📢 監事審査結果")
                     st.markdown(result)
         except Exception as e:
-            st.error(f"エラーが発生しました: {e}")
+            st.error(f"ファイル読み込みエラー: {e}")
