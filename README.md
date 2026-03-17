@@ -1,0 +1,1 @@
+# sendai-jc-kanji-ai
